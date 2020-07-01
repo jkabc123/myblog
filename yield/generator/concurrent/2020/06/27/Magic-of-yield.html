@@ -1044,6 +1044,7 @@ Before yield
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="kn">import</span> <span class="n">ThreadPoolExecutor</span> <span class="k">as</span> <span class="n">Pool</span>
+<span class="kn">import</span> <span class="nn">time</span>
 </pre></div>
 
     </div>
@@ -1115,7 +1116,10 @@ Before yield
 
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="o">%</span><span class="k">timeit</span> fut.result()
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">start</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="n">fut</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+<span class="n">end</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"total time:"</span><span class="p">,</span> <span class="p">(</span><span class="n">end</span><span class="o">-</span><span class="n">start</span><span class="p">)</span><span class="o">/</span><span class="mi">60</span><span class="p">)</span>
 </pre></div>
 
     </div>
@@ -1128,7 +1132,7 @@ Before yield
 <div class="output_area">
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre>712 ns ± 12.8 ns per loop (mean ± std. dev. of 7 runs, 1000000 loops each)
+<pre>total time: 0.8523510853449504
 </pre>
 </div>
 </div>
@@ -1163,6 +1167,135 @@ Before yield
 </div>
 </div>
 </div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In 2014, Python Cookbook author David Beazley has presented the idea in his talk <em>Generator, the frontier</em> to use yield to turn thread and future to non-blocking. The following code is based on that talk.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>First, we define a generator for the purpose of calculating the fibonacci number.</p>
+
+</div>
+</div>
+</div>
+    
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">def</span> <span class="nf">cal_fib</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="n">res</span><span class="o">=</span><span class="k">yield</span> <span class="n">pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">fib</span><span class="p">,</span><span class="n">n</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"result:"</span><span class="p">,</span><span class="n">res</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+    
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Next, we write a class called Task, which will wrap this generator and attach a call back function to the calculation.</p>
+
+</div>
+</div>
+</div>
+    
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Task</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">gen</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gen</span><span class="o">=</span><span class="n">gen</span>
+    
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">fut</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_gen</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">fut</span><span class="o">.</span><span class="n">add_done_callback</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_wakeup</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"Stop now"</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_wakeup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">fut</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"wake up:"</span><span class="p">,</span> <span class="n">fut</span><span class="o">.</span><span class="n">result</span><span class="p">())</span>
+        <span class="n">result</span><span class="o">=</span><span class="n">fut</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+    
+
+    
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">fib_task</span><span class="o">=</span><span class="n">Task</span><span class="p">(</span><span class="n">cal_fib</span><span class="p">(</span><span class="mi">40</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+    
+
+    
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">start</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="n">fib_task</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<span class="n">end</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"total time:"</span><span class="p">,</span> <span class="p">(</span><span class="n">end</span><span class="o">-</span><span class="n">start</span><span class="p">)</span><span class="o">/</span><span class="mi">60</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>total time: 0.00018332401911417642
+wake up: 102334155
+result: 102334155
+Stop now
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+    
+
 </div>
 
 
